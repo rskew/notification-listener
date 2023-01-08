@@ -12,7 +12,7 @@ start(_Type, _Args) ->
         [{port, ?PORT}],
         #{env => #{dispatch => Dispatch}}
     ),
-    io:format("Server started on port ~p~n", [?PORT]),
+    io:format("Notify-send server started on port ~p~n", [?PORT]),
     notify_send_server_sup:start_link().
 
 stop(_State) ->

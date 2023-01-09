@@ -35,6 +35,9 @@
               type = lib.types.int;
               default = 2001;
             };
+            user = lib.mkOption {
+              type = lib.types.str;
+            };
           };
           config = {
             networking.firewall.allowedTCPPorts = [ cfg.port ];
@@ -45,6 +48,7 @@
               wantedBy = [ "multi-user.target" ];
               path = [pkgs.gawk];
               serviceConfig = {
+                User = cfg.user;
                 Restart = "always";
                 RestartSec = 10;
                 StartLimitBurst = 8640;

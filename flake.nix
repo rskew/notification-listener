@@ -25,6 +25,7 @@
       apps.x86_64-linux.default =
         let prog = pkgs.writeShellScript "run" "${packages.x86_64-linux.default}/bin/notify_send_server console";
         in { type = "app"; program = "${prog}"; };
+      # NOTE This doesn't work, need to set some env vars for notify-send to work from a systemd service
       nixosModule =
         { lib, config, ... }:
         let

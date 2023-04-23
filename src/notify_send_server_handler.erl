@@ -4,6 +4,7 @@
 
 init(Req0, State) ->
     #{status := Status, heading := Heading, subheading := Subheading} = cowboy_req:bindings(Req0),
+    io:format("Notification received: ~p: ~p~n", [Heading, Subheading]),
     BgColor = if Status /= <<"0">> -> "-h string:bgcolor:#f00b";
                  true -> "-h string:bgcolor:#0000"
               end,

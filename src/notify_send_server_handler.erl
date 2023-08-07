@@ -12,6 +12,6 @@ init(Req0, State) ->
     os:cmd(binary_to_list(iolist_to_binary(Command))),
     Req = cowboy_req:reply(200,
         #{<<"content-type">> => <<"text/plain">>},
-        [<<"Notification ">>, Heading, " ", Subheading, <<" received, status ">>, Status, <<"\n">>],
+        [<<"Notification ">>, Heading, " ", Subheading, <<" acknowledged, status ">>, Status, <<"\n">>],
         Req0),
     {ok, Req, State}.

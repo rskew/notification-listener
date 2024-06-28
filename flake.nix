@@ -1,64 +1,63 @@
-# nix run . -- console
 {
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-22.11";
-    nix-rebar3.url = "github:axelf4/nix-rebar3";
-    nix-rebar3.inputs.nixpkgs.follows = "nixpkgs";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
   };
 
-  outputs = { self, nixpkgs, nix-rebar3 }:
-    let pkgs = nixpkgs.legacyPackages.x86_64-linux;
-    in rec {
-      devShells.x86_64-linux.default = pkgs.mkShell {
-        buildInputs = [
-          pkgs.erlang
-          pkgs.rebar3
-        ];
+  outputs = { self, nixpkgs }:
+    let
+      pkgs = import nixpkgs {
+        system = "x86_64-linux";
       };
-      packages.x86_64-linux.default =
-        (pkgs.callPackage nix-rebar3 {}).buildRebar3 {
-          root = ./.;
-          pname = "notification-server";
-          version = "0.1.0";
-          releaseType = "release";
+    in {
+        devShells.x86_64-linux.default = pkgs.mkShell {
+          # keep your shell history in iex
+          ERL_FLAGS = "-kernel shell_history enabled";
+
+          buildInputs = [
+            pkgs.elixir
+            pkgs.elixir-ls
+            pkgs.inotify-tools
+            pkgs.mix2nix
+          ];
+          shellHook = ''
+            cat << EOF
+              Fetch elixir deps
+                  mix deps.get
+
+              Start the server:
+                  iex -S mix
+
+              Send test notification:
+                  nix run .#notify localhost '["hello", "there", false]'
+
+              Update dependencies:
+                  mix2nix > mix_deps.nix
+            EOF
+          '';
         };
-      apps.x86_64-linux.default =
-        let prog = pkgs.writeShellScript "run" "${packages.x86_64-linux.default}/bin/notify_send_server console";
-        in { type = "app"; program = "${prog}"; };
-      # NOTE This doesn't work, need to set some env vars for notify-send to work from a systemd service
-      nixosModule =
-        { lib, config, ... }:
-        let
-          cfg = config.services.notification-server;
-        in {
-          options.services.notification-server = {
-            port = lib.mkOption {
-              type = lib.types.int;
-              default = 2001;
-            };
-            user = lib.mkOption {
-              type = lib.types.str;
-            };
-          };
-          config = {
-            networking.firewall.allowedTCPPorts = [ cfg.port ];
-            systemd.services.notification-server = {
-              description = "";
-              after = [ "network-pre.target" ];
-              wants = [ "network-pre.target" ];
-              wantedBy = [ "multi-user.target" ];
-              path = [pkgs.gawk];
-              serviceConfig = {
-                User = cfg.user;
-                Restart = "always";
-                RestartSec = 10;
-                StartLimitBurst = 8640;
-                StartLimitIntervalSec = 86400;
-                StartLimitInterval = 86400;
-                ExecStart = "${packages.x86_64-linux.default}/bin/notify_send_server foreground";
+
+        packages.x86_64-linux.notify = pkgs.writeShellScriptBin "notify" ''
+          HOST="''${1:-localhost}"
+          MESSAGE="''${2:-[\"hello\",\"\"]}"
+          echo -n "$MESSAGE" | ${pkgs.netcat-gnu}/bin/netcat -cu "$HOST" 2001
+        '';
+
+        packages.x86_64-linux.server =
+          let release = pkgs.beamPackages.mixRelease {
+                pname = "notify_send_server";
+                version = "0.0.1";
+                src = pkgs.runCommand "src" {} ''
+                  mkdir $out
+                  cp ${./mix.exs} $out/mix.exs
+                  cp ${./mix.lock} $out/mix.lock
+                  cp -r ${./lib} $out/lib
+                '';
+                mixNixDeps = with pkgs; import ./mix_deps.nix { inherit lib beamPackages; };
               };
-            };
-          };
-        };
-    };
+          in pkgs.writeShellApplication {
+               name = "notify-send-server";
+               runtimeInputs = [ pkgs.libnotify pkgs.dbus ];
+               text = "ERL_FLAGS='-kernel shell_history enabled' RELEASE_COOKIE=hi ${release}/bin/notify_send_server start";
+             };
+      };
 }
